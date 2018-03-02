@@ -22,6 +22,48 @@ var application = require('../../common/application');
 var randomUtil = require('../../common/utils/random');
 var accountFixtures = require('../../fixtures/accounts');
 
+function getDelegateForSlot(library, slot, cb) {
+	var lastBlock = library.modules.blocks.lastBlock.get();
+
+	library.modules.delegates.generateDelegateList(
+		lastBlock.height,
+		null,
+		(err, list) => {
+			var delegatePublicKey = list[slot % slots.delegates];
+			return cb(err, delegatePublicKey);
+		}
+	);
+}
+
+function createBlock(library, transactions, timestamp, keypair, previousBlock) {
+	var block = library.logic.block.create({
+		keypair,
+		timestamp,
+		previousBlock,
+		transactions,
+	});
+
+	block.id = library.logic.block.getId(block);
+	block.height = previousBlock.height + 1;
+	return block;
+}
+
+function createValidBlock(library, transactions, cb) {
+	var lastBlock = library.modules.blocks.lastBlock.get();
+	var slot = slots.getSlotNumber();
+	var keypairs = library.rewiredModules.delegates.__get__('__private.keypairs');
+	getDelegateForSlot(library, slot, (err, delegateKey) => {
+		var block = createBlock(
+			library,
+			transactions,
+			slots.getSlotTime(slot),
+			keypairs[delegateKey],
+			lastBlock
+		);
+		cb(err, block);
+	});
+}
+
 function forge(library, cb) {
 	function getNextForger(offset, cb) {
 		offset = !offset ? 1 : offset;
@@ -273,6 +315,7 @@ module.exports = {
 	forge,
 	fillPool,
 	addTransaction,
+	createValidBlock,
 	addTransactionsAndForge,
 	getAccountFromDb,
 	getTransactionFromModule,
