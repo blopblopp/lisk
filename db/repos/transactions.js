@@ -37,6 +37,7 @@ class TransactionsRepository {
 	constructor(db, pgp) {
 		this.db = db;
 		this.pgp = pgp;
+		this.inTransaction = !!(db.ctx && db.ctx.inTransaction);
 
 		this.sortFields = [
 			'id',
@@ -295,7 +296,7 @@ class TransactionsRepository {
 			}
 		});
 
-		return this.db.txIf('transactions:save', t => {
+		const job = t => {
 			const batch = [];
 
 			batch.push(t.none(this.pgp.helpers.insert(saveTransactions, cs.insert)));
@@ -309,7 +310,12 @@ class TransactionsRepository {
 			});
 
 			return t.batch(batch);
-		});
+		};
+
+		// we check when there is a transaction on this level or above:
+		return this.inTransaction
+			? job(this.db)
+			: this.db.tx('transactions:save', job);
 	}
 }
 
