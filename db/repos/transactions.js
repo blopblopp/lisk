@@ -126,8 +126,24 @@ class TransactionsRepository {
 	 * @todo Add description for the params and the return value
 	 */
 	countList(params) {
-		// TODO: Get rid of the in-code query, and a result-specific query method
-		return this.db.query(Queries.countList(params), params);
+		// Add dummy condition in case of blank to avoid conditional where clause
+		let conditions =
+			params && params.where && params.where.length ? params.where : ['1 = 1'];
+
+		// Handle the case if single condition is provided
+		if (typeof conditions === 'string') {
+			conditions = [conditions];
+		}
+
+		// FIXME: Backward compatibility, should be removed after transitional period
+		if (params && params.owner) {
+			conditions.push(params.owner);
+		}
+		return this.db.one(
+			sql.countList,
+			{ conditions: conditions.join(' AND ') },
+			a => +a.count
+		);
 	}
 
 	/**
@@ -266,39 +282,27 @@ class TransactionsRepository {
 			}
 		});
 
-		const batch = [];
-		batch.push(
-			this.db.none(this.pgp.helpers.insert(saveTransactions, cs.insert))
-		);
+		return this.db.txIf('transactions:save', t => {
+			const batch = [];
 
-		const groupedTransactions = _.groupBy(saveTransactions, 'type');
+			batch.push(t.none(this.pgp.helpers.insert(saveTransactions, cs.insert)));
 
-		Object.keys(groupedTransactions).forEach(type => {
-			batch.push(
-				this.db[this.transactionsRepoMap[type]].save(groupedTransactions[type])
-			);
+			const groupedTransactions = _.groupBy(saveTransactions, 'type');
+
+			Object.keys(groupedTransactions).forEach(type => {
+				batch.push(
+					t[this.transactionsRepoMap[type]].save(groupedTransactions[type])
+				);
+			});
+
+			return t.batch(batch);
 		});
-
-		return this.db.txIf('transactions:save', t => t.batch(batch));
 	}
 }
 
 // TODO: All these queries need to be thrown away, and use proper implementation inside corresponding methods.
 
 const Queries = {
-	countList: params =>
-		[
-			'SELECT count(*) FROM trs_list',
-			params.where.length || params.owner ? 'WHERE' : '',
-			params.where.length ? `(${params.where.join(' ')})` : '',
-			// FIXME: Backward compatibility, should be removed after transitional period
-			params.where.length && params.owner
-				? ` AND ${params.owner}`
-				: params.owner,
-		]
-			.filter(Boolean)
-			.join(' '),
-
 	list: params =>
 		[
 			'SELECT t_id, b_height, "t_blockId", t_type, t_timestamp, "t_senderId", "t_recipientId",',
