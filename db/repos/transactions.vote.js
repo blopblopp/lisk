@@ -14,9 +14,9 @@
 
 'use strict';
 
-var _ = require('lodash');
+const _ = require('lodash');
 
-var columnSet;
+let columnSet;
 
 /**
  * Votes transactions database interaction class.
@@ -29,48 +29,49 @@ var columnSet;
  * @param {Object} pgp - pg-promise instance to utilize helpers
  * @returns {Object} An instance of a VoteTransactionsRepo
  */
-function VoteTransactionsRepo(db, pgp) {
-	this.db = db;
-	this.pgp = pgp;
+class VoteTransactionsRepo {
+	constructor(db, pgp) {
+		this.db = db;
+		this.pgp = pgp;
 
-	this.dbTable = 'votes';
+		this.dbTable = 'votes';
 
-	this.dbFields = ['votes', 'transactionId'];
+		this.dbFields = ['votes', 'transactionId'];
 
-	if (!columnSet) {
-		columnSet = {};
-		var table = new pgp.helpers.TableName({
-			table: this.dbTable,
-			schema: 'public',
-		});
-		columnSet.insert = new pgp.helpers.ColumnSet(this.dbFields, {
-			table,
-		});
+		if (!columnSet) {
+			columnSet = {};
+			var table = new pgp.helpers.TableName({
+				table: this.dbTable,
+			});
+			columnSet.insert = new pgp.helpers.ColumnSet(this.dbFields, {
+				table,
+			});
+		}
+
+		this.cs = columnSet;
 	}
 
-	this.cs = columnSet;
+	/**
+	 * Save vote transactions.
+	 *
+	 * @param {Array} transactions
+	 * @returns {Promise}
+	 * @todo Add description for the params and the return value
+	 */
+	save(transactions) {
+		if (!_.isArray(transactions)) {
+			transactions = [transactions];
+		}
+
+		transactions = transactions.map(transaction => ({
+			votes: Array.isArray(transaction.asset.votes)
+				? transaction.asset.votes.join()
+				: null,
+			transactionId: transaction.id,
+		}));
+
+		return this.db.none(this.pgp.helpers.insert(transactions, this.cs.insert));
+	}
 }
-
-/**
- * Save vote transactions.
- *
- * @param {Array} transactions
- * @returns {Promise}
- * @todo Add description for the params and the return value
- */
-VoteTransactionsRepo.prototype.save = function(transactions) {
-	if (!_.isArray(transactions)) {
-		transactions = [transactions];
-	}
-
-	transactions = transactions.map(transaction => ({
-		votes: Array.isArray(transaction.asset.votes)
-			? transaction.asset.votes.join()
-			: null,
-		transactionId: transaction.id,
-	}));
-
-	return this.db.none(this.pgp.helpers.insert(transactions, this.cs.insert));
-};
 
 module.exports = VoteTransactionsRepo;

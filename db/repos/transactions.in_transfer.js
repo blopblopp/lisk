@@ -14,10 +14,9 @@
 
 'use strict';
 
-var _ = require('lodash');
-require('../../helpers/transaction_types');
+const _ = require('lodash');
 
-var columnSet;
+let columnSet;
 
 /**
  * InTransfer transactions database interaction class.
@@ -25,52 +24,52 @@ var columnSet;
  * @class
  * @memberof db.repos
  * @requires lodash
- * @requires helpers/transaction_types
  * @see Parent: {@link db.repos}
  * @param {Database} db - Instance of database object from pg-promise
  * @param {Object} pgp - pg-promise instance to utilize helpers
  * @returns {Object} An instance of a InTransferTransactionsRepo
  */
-function InTransferTransactionsRepo(db, pgp) {
-	this.db = db;
-	this.pgp = pgp;
+class InTransferTransactionsRepo {
+	constructor(db, pgp) {
+		this.db = db;
+		this.pgp = pgp;
 
-	this.dbTable = 'intransfer';
+		this.dbTable = 'intransfer';
 
-	this.dbFields = ['dappId', 'transactionId'];
+		this.dbFields = ['dappId', 'transactionId'];
 
-	if (!columnSet) {
-		columnSet = {};
-		var table = new pgp.helpers.TableName({
-			table: this.dbTable,
-			schema: 'public',
-		});
-		columnSet.insert = new pgp.helpers.ColumnSet(this.dbFields, {
-			table,
-		});
+		if (!columnSet) {
+			columnSet = {};
+			var table = new pgp.helpers.TableName({
+				table: this.dbTable,
+			});
+			columnSet.insert = new pgp.helpers.ColumnSet(this.dbFields, {
+				table,
+			});
+		}
+
+		this.cs = columnSet;
 	}
 
-	this.cs = columnSet;
+	/**
+	 * Save inTransfer transactions.
+	 *
+	 * @param {Array} transactions
+	 * @returns {Promise}
+	 * @todo Add description for the params and the return value
+	 */
+	save(transactions) {
+		if (!_.isArray(transactions)) {
+			transactions = [transactions];
+		}
+
+		transactions = transactions.map(transaction => ({
+			dappId: transaction.asset.inTransfer.dappId,
+			transactionId: transaction.id,
+		}));
+
+		return this.db.none(this.pgp.helpers.insert(transactions, this.cs.insert));
+	}
 }
-
-/**
- * Save inTransfer transactions.
- *
- * @param {Array} transactions
- * @returns {Promise}
- * @todo Add description for the params and the return value
- */
-InTransferTransactionsRepo.prototype.save = function(transactions) {
-	if (!_.isArray(transactions)) {
-		transactions = [transactions];
-	}
-
-	transactions = transactions.map(transaction => ({
-		dappId: transaction.asset.inTransfer.dappId,
-		transactionId: transaction.id,
-	}));
-
-	return this.db.none(this.pgp.helpers.insert(transactions, this.cs.insert));
-};
 
 module.exports = InTransferTransactionsRepo;

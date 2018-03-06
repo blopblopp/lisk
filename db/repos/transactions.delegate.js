@@ -14,10 +14,9 @@
 
 'use strict';
 
-var _ = require('lodash');
-require('../../helpers/transaction_types');
+const _ = require('lodash');
 
-var columnSet;
+let columnSet;
 
 /**
  * Delegates transactions database interaction class.
@@ -25,52 +24,53 @@ var columnSet;
  * @class
  * @memberof db.repos
  * @requires lodash
- * @requires helpers/transaction_types
  * @see Parent: {@link db.repos}
  * @param {Database} db - Instance of database object from pg-promise
  * @param {Object} pgp - pg-promise instance to utilize helpers
  * @returns {Object} An instance of a DelegateTransactionsRepo
  */
-function DelegateTransactionsRepo(db, pgp) {
-	this.db = db;
-	this.pgp = pgp;
+class DelegateTransactionsRepo {
+	constructor(db, pgp) {
+		this.db = db;
+		this.pgp = pgp;
 
-	this.dbTable = 'delegates';
+		this.dbTable = 'delegates';
 
-	this.dbFields = ['transactionId', 'username'];
+		this.dbFields = ['transactionId', 'username'];
 
-	if (!columnSet) {
-		columnSet = {};
-		var table = new pgp.helpers.TableName({
-			table: this.dbTable,
-			schema: 'public',
-		});
-		columnSet.insert = new pgp.helpers.ColumnSet(this.dbFields, {
-			table,
-		});
+		if (!columnSet) {
+			columnSet = {};
+			var table = new pgp.helpers.TableName({
+				table: this.dbTable,
+				schema: 'public',
+			});
+			columnSet.insert = new pgp.helpers.ColumnSet(this.dbFields, {
+				table,
+			});
+		}
+
+		this.cs = columnSet;
 	}
 
-	this.cs = columnSet;
+	/**
+	 * Save dapp transactions.
+	 *
+	 * @param {Array} transactions
+	 * @returns {Promise}
+	 * @todo Add description for the params and the return value
+	 */
+	save(transactions) {
+		if (!_.isArray(transactions)) {
+			transactions = [transactions];
+		}
+
+		transactions = transactions.map(transaction => ({
+			transactionId: transaction.id,
+			username: transaction.asset.delegate.username,
+		}));
+
+		return this.db.none(this.pgp.helpers.insert(transactions, this.cs.insert));
+	}
 }
-
-/**
- * Save dapp transactions.
- *
- * @param {Array} transactions
- * @returns {Promise}
- * @todo Add description for the params and the return value
- */
-DelegateTransactionsRepo.prototype.save = function(transactions) {
-	if (!_.isArray(transactions)) {
-		transactions = [transactions];
-	}
-
-	transactions = transactions.map(transaction => ({
-		transactionId: transaction.id,
-		username: transaction.asset.delegate.username,
-	}));
-
-	return this.db.none(this.pgp.helpers.insert(transactions, this.cs.insert));
-};
 
 module.exports = DelegateTransactionsRepo;
